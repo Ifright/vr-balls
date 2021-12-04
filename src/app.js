@@ -110,7 +110,7 @@ this.room = new THREE.LineSegments(
 
     const geometry = new THREE.IcosahedronBufferGeometry( this.radius, 2 )
 
-    for ( let i =0; i < 50; i ++ ) {
+    for ( let i = 0; i < 200; i ++ ) {
 
       const object = new THREE.Mesh( geometry, new THREE.MeshLambertMaterial( { color: Math.random() * 0xffffff } ) )
 
@@ -126,7 +126,36 @@ this.room = new THREE.LineSegments(
   setupVR(){
     this.renderer.xr.enabled = true
     document.body.appendChild( VRButton.createButton( this.renderer ) )
+
+    this.controllers = this.buildControlers()
   }
+
+  buildControllers() {
+    const controllerModelFactory = new XRControllerModelFactory()
+    const geometry = new THREE.BufferGeometry().setFromPoints([
+      new THREE.Vector3(0, 0, 0),
+      new THREE.Vector3(0, 0, -1)
+    ])
+    const line = new THREE.Line(geometry)
+    line.name = 'line'
+    line.scale.z = 0
+
+    const controllers = []
+
+    const controller = this.renderer.xr.getController(0)
+    controller.add(line.clone())
+    controller.userData.selectPressed = false
+    this.scene.add(controller)
+
+    controllers.push(controller)
+
+    const grip = this.renderer.xr.getControllerGrip( 0)
+    grip.add(controllerModelFactory.createControllerModel(grip))
+    this.scene.add(grip)
+
+    return controllers
+  }
+
   resize() {
     this.camera.aspect = window.innerWidth / window.innerHeight
     this.camera.updateProjectionMatrix()

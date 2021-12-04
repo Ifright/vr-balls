@@ -1,6 +1,7 @@
 const path = require('path');
 const HtmlWebpackPlugin = require('html-webpack-plugin');
 
+
 module.exports = {
   entry: './src/index.js',
   plugins: [
@@ -8,6 +9,11 @@ module.exports = {
       title: 'Your first THREE.js app',
       favicon: './src/logo.png'
     }),
+      new CopyWebpackPlugin({
+        patterns: [
+          {from: 'public', to: 'inner'}
+        ]
+      })
   ],
   module: {
     rules: [
@@ -26,4 +32,8 @@ module.exports = {
     path: path.resolve(__dirname, 'dist'),
     clean: true
   },
+  devServer: {
+    compress: true,
+    port: 9000
+  }
 };
