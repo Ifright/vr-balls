@@ -2,13 +2,15 @@ import * as THREE from 'three/build/three.module.js'
 import {OrbitControls} from 'three/examples/jsm/controls/OrbitControls.js'
 import {VRButton} from "three/examples/jsm/webxr/VRButton"
 import {BoxLineGeometry} from "three/examples/jsm/geometries/BoxLineGeometry"
+import {XRControllerModelFactory} from "three/examples/jsm/webxr/XRControllerModelFactory";
 
-import veniceSunset from '../assets/venice_sunset_1k.hdr'
+import veniceSunset from '../assets/venice_sunset_1k.hdr';
 
 import officeChairGlb from "../assets/office-chair.glb"
 import {GLTFLoader} from "three/examples/jsm/loaders/GLTFLoader";
 
 import {LoadingBar} from "./LoadingBar";
+import {controllers} from "three/examples/jsm/libs/dat.gui.module";
 
 class App {
   constructor() {
@@ -47,6 +49,10 @@ class App {
     this.controls = new OrbitControls(this.camera, this.renderer.domElement)
     this.controls.target.set(0, 1.6, 0)
     this.controls.update()
+
+    this.raycaster = new THREE.Raycaster()
+    this.workingMatrix = new THREE.Matrix4()
+    this.workingVector = new THREE.Vector3()
 
     // this.initSceneCube()
     this.initScene()
@@ -121,13 +127,35 @@ this.room = new THREE.LineSegments(
       this.room.add( object)
 
     }
+    this.highlight = new THREE.Mesh ( geometry, new THREE.MeshBasicMaterial( {
+      color: 0xFFFFFF, side: THREE.BackSide }))
+    this.highlight.scale.set( 1.2, 1.2, 1.2)
+    this.scene.add( this.highlight )
   }
 
   setupVR(){
     this.renderer.xr.enabled = true
     document.body.appendChild( VRButton.createButton( this.renderer ) )
 
-    this.controllers = this.buildControlers()
+    this.controllers = this.buildControllers()
+
+    const self = this
+
+    function  onSelectStart() {
+      this.children[0].scale.z = 10
+      this.userData.selectPressed = true
+    }
+
+    function  onSelectEnd() {
+      this.children[0].scale.z = 0
+      self.highlight.visible = false
+      this.userData.selectPressed = false
+    }
+
+    this.controllers.forEach( ( controller) => {
+      controller.addEventListener( 'selectstart', onSelectStart );
+      controller.addEventListener( 'selectend', onSelectEnd );
+    });
   }
 
   buildControllers() {
@@ -142,18 +170,46 @@ this.room = new THREE.LineSegments(
 
     const controllers = []
 
-    const controller = this.renderer.xr.getController(0)
-    controller.add(line.clone())
-    controller.userData.selectPressed = false
-    this.scene.add(controller)
+for (let i=0; i<2; i++) {
+  const controller = this.renderer.xr.getController(i)
+  controller.add(line.clone())
+  controller.userData.selectPressed = false
+  this.scene.add(controller)
 
-    controllers.push(controller)
+  controllers.push(controller)
 
-    const grip = this.renderer.xr.getControllerGrip( 0)
-    grip.add(controllerModelFactory.createControllerModel(grip))
-    this.scene.add(grip)
+  const grip = this.renderer.xr.getControllerGrip(i)
+  grip.add(controllerModelFactory.createControllerModel(grip))
+  this.scene.add(grip)
+  //const grip1 = this.renderer.xr.getControllerGrip(1)
+  //grip1.add(controllerModelFactory.createControllerModel(grip1))
+  //this.scene.add(grip1)
+
+
+}
 
     return controllers
+  }
+
+  handleController(controller) {
+    if (controller.userData.selectPressed) {
+      controller.children[0].scale.z = 10
+      this.workingMatrix.identity().extractRotation( controller.matrixWorld)
+
+      this.raycaster.ray.origin.setFromMatrixPosition(controller.matrixWorld)
+
+      this.raycaster.ray.direction.set(0, 0, -1).applyMatrix4(this.workingMatrix)
+
+      const intersects = this.raycaster.intersectObjects(this.room.children)
+
+      if (intersects.length > 0) {
+        intersects[0].object.add(this.highlight)
+        this.highlight.visible = true
+        controller.children[0].scale.z = intersects[0].distance
+      } else {
+        this.highlight.visible = false
+      }
+    }
   }
 
   resize() {
@@ -166,6 +222,13 @@ this.room = new THREE.LineSegments(
     if (this.mesh) {
       this.mesh.rotateX(0.005)
       this.mesh.rotateY(0.01)
+    }
+
+    if (this.controllers) {
+      const self = this
+      this.controllers.forEach((controller) => {
+        self.handleController(controller)
+      })
     }
     this.renderer.render(this.scene, this.camera)
   }
