@@ -3,12 +3,11 @@ import {OrbitControls} from 'three/examples/jsm/controls/OrbitControls.js'
 import {VRButton} from "three/examples/jsm/webxr/VRButton"
 import {BoxLineGeometry} from "three/examples/jsm/geometries/BoxLineGeometry"
 import {XRControllerModelFactory} from "three/examples/jsm/webxr/XRControllerModelFactory";
-
+import flashLightPack from "../assets/flash-light.glb"
 import veniceSunset from '../assets/venice_sunset_1k.hdr';
-
 import officeChairGlb from "../assets/office-chair.glb"
 import {GLTFLoader} from "three/examples/jsm/loaders/GLTFLoader";
-
+import {SpotLightVolumetricMaterial} from "./utils/SpotLightVolumetricMaterial";
 import {LoadingBar} from "./LoadingBar";
 import {controllers} from "three/examples/jsm/libs/dat.gui.module";
 
@@ -46,6 +45,7 @@ class App {
     this.loadingBar = new LoadingBar()
     this.loadGltf()
 
+    this.controllers = []
     this.controls = new OrbitControls(this.camera, this.renderer.domElement)
     this.controls.target.set(0, 1.6, 0)
     this.controls.update()
@@ -53,6 +53,8 @@ class App {
     this.raycaster = new THREE.Raycaster()
     this.workingMatrix = new THREE.Matrix4()
     this.workingVector = new THREE.Vector3()
+
+    this.spotlights = {}
 
     // this.initSceneCube()
     this.initScene()
@@ -137,28 +139,97 @@ this.room = new THREE.LineSegments(
     this.renderer.xr.enabled = true
     document.body.appendChild( VRButton.createButton( this.renderer ) )
 
-    this.controllers = this.buildControllers()
+    let i = 0
+    this.flashLightController(i++)
+    this.buildStandardController(i++)
+    // this.flashLightController(i++)
+    // this.buildStandardController(i++)
+  }
+
+    flashLightController(index) {
+      const self = this
+
+
+      function onSelectStart() {
+        this.userData.selectPressed = true
+        if (self.spotlights[this.uuid]) {
+          self.spotlights[this.uuid].visible = true
+        } else {
+          this.children[0].scale.z = 10
+        }
+      }
+
+      function onSelectEnd() {
+        self.highlight.visible = false
+        this.userData.selectPressed = false
+        if (self.spotlights[this.uuid]) {
+          self.spotlights[this.uuid].visible = false
+        } else {
+         this.children[0].scale.z = 0
+        }
+      }
+
+      let controller = this.renderer.xr.getController(index)
+      controller.addEventListener( 'selectstart', onSelectStart );
+      controller.addEventListener( 'selectend', onSelectEnd );
+      controller.addEventListener( 'connected', function (event) {
+       self.buildFlashLightController.call(self, event.data, this)
+      })
+      controller.addEventListener( 'disconnected', function () {
+        while(this.children.length > 0) {
+          this.remove(this.children[0])
+          const controllerIndex = self.controllers.idexOf(this)
+          self.controllers[controllerIndex] = null
+        }
+      })
+      controller.handle = () => this.handleFlashLightController(controller)
+
+      this.controllers[index] = controller
+      this.scene.add(controller)
+    }
+
+  buildFlashLightController(data, controller) {
+    let geometry, material, loader
 
     const self = this
 
-    function  onSelectStart() {
-      this.children[0].scale.z = 10
-      this.userData.selectPressed = true
-    }
+    if (data.targetRayMode === 'tracked-pointer') {
+      loader = new GLTFLoader()
+      loader.load(flashLightPack, (gltf) => {
+        const flashLight = gltf.scene.children[2]
+        const scale = 0.6
+        flashLight.scale.set(scale, scale, scale)
+        controller.add(flashLight)
+        const spotlightGroup = new THREE.Group()
+        self.spotlights[controller.uuid] = spotlightGroup
 
-    function  onSelectEnd() {
-      this.children[0].scale.z = 0
-      self.highlight.visible = false
-      this.userData.selectPressed = false
-    }
+        const spotlight = new THREE.SpotLight(0xFFFFFF, 2, 12, Math.PI / 15,
+            0.3)
+        spotlight.position.set(0, 0, 0)
+        spotlight.target.position.set(0, 0, -1)
+        spotlightGroup.add(spotlight.target)
+        spotlightGroup.add(spotlight)
+        controller.add(spotlightGroup)
 
-    this.controllers.forEach( ( controller) => {
-      controller.addEventListener( 'selectstart', onSelectStart );
-      controller.addEventListener( 'selectend', onSelectEnd );
-    });
+        spotlightGroup.visible = false
+
+        geometry = new THREE.CylinderBufferGeometry(0.03, 1, 5, 32, true)
+        geometry.rotateX(Math.PI / 2)
+        material = new SpotLightVolumetricMaterial()
+        const cone  = new THREE.Mesh(geometry, material)
+        cone.translateZ(-2.6)
+        spotlightGroup.add(cone)
+      },
+          null,
+          (error) => console.error(`An error happened: ${error}`)
+      )
+    } else if (data.targetRayMode == 'gaze') {
+      geometry = new THREE.RingBufferGeometry(0.02, 0.04, 32).translate(0, 0, -1);
+      material = new THREE.MeshBasicMaterial({opacity: 0.5, transparent: true});
+    }
   }
 
-  buildControllers() {
+  buildStandardController(index) {
     const controllerModelFactory = new XRControllerModelFactory()
     const geometry = new THREE.BufferGeometry().setFromPoints([
       new THREE.Vector3(0, 0, 0),
@@ -168,27 +239,35 @@ this.room = new THREE.LineSegments(
     line.name = 'line'
     line.scale.z = 0
 
-    const controllers = []
+  const controller = this.renderer.xr.getController(index)
 
-for (let i=0; i<2; i++) {
-  const controller = this.renderer.xr.getController(i)
-  controller.add(line.clone())
+  controller.add(line)
   controller.userData.selectPressed = false
-  this.scene.add(controller)
 
-  controllers.push(controller)
-
-  const grip = this.renderer.xr.getControllerGrip(i)
+  const grip = this.renderer.xr.getControllerGrip(index)
   grip.add(controllerModelFactory.createControllerModel(grip))
   this.scene.add(grip)
-  //const grip1 = this.renderer.xr.getControllerGrip(1)
-  //grip1.add(controllerModelFactory.createControllerModel(grip1))
-  //this.scene.add(grip1)
 
+    const self = this
 
-}
+  function onSelectStart() {
+      this.children[0].scale.z = 10
+    this.userData.selectPressed = true
+  }
 
-    return controllers
+    function onSelectEnd() {
+      this.children[0].scale.z = 0
+      self.highlight.visible = false
+      this.userData.selectPressed = false
+    }
+
+    controller.addEventListener( 'selectstart', onSelectStart);
+    controller.addEventListener( 'selectend', onSelectEnd);
+
+    controller.handle = () => this.handleController(controller)
+
+    this.scene.add(controller)
+    this.controllers[index] = controller
   }
 
   handleController(controller) {
@@ -203,9 +282,32 @@ for (let i=0; i<2; i++) {
       const intersects = this.raycaster.intersectObjects(this.room.children)
 
       if (intersects.length > 0) {
-        intersects[0].object.add(this.highlight)
+        if (intersects[0].object.uuid !== this.highlight.uuid) {
+          intersects[0].object.add(this.highlight)
+        }
         this.highlight.visible = true
         controller.children[0].scale.z = intersects[0].distance
+      } else {
+        this.highlight.visible = false
+      }
+    }
+  }
+
+  handleFlashLightController(controller) {
+    if (controller.userData.selectPressed) {
+      this.workingMatrix.identity().extractRotation( controller.matrixWorld)
+
+      this.raycaster.ray.origin.setFromMatrixPosition(controller.matrixWorld)
+
+      this.raycaster.ray.direction.set(0, 0, -1).applyMatrix4(this.workingMatrix)
+
+      const intersects = this.raycaster.intersectObjects(this.room.children)
+
+      if (intersects.length > 0) {
+        if (intersects[0].object.uuid !== this.highlight.uuid) {
+          intersects[0].object.add(this.highlight)
+        }
+        this.highlight.visible = true
       } else {
         this.highlight.visible = false
       }
@@ -225,10 +327,7 @@ for (let i=0; i<2; i++) {
     }
 
     if (this.controllers) {
-      const self = this
-      this.controllers.forEach((controller) => {
-        self.handleController(controller)
-      })
+      this.controllers.forEach(controller => controller.handle())
     }
     this.renderer.render(this.scene, this.camera)
   }
