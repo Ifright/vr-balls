@@ -4,6 +4,8 @@ import {VRButton} from "three/examples/jsm/webxr/VRButton"
 import {BoxLineGeometry} from "three/examples/jsm/geometries/BoxLineGeometry"
 import {XRControllerModelFactory} from "three/examples/jsm/webxr/XRControllerModelFactory";
 import flashLightPack from "../assets/flash-light.glb"
+import pistolPack from "../assets/pistol.glb"
+
 import veniceSunset from '../assets/venice_sunset_1k.hdr';
 import officeChairGlb from "../assets/office-chair.glb"
 import {GLTFLoader} from "three/examples/jsm/loaders/GLTFLoader";
@@ -140,13 +142,36 @@ this.room = new THREE.LineSegments(
     document.body.appendChild( VRButton.createButton( this.renderer ) )
 
     let i = 0
-    this.flashLightController(i++)
-    this.buildStandardController(i++)
+
+    this.pistolController(i++)
+    // this.flashLightController(i++)
+    // this.buildStandardController(i++)
+    this.pistolController(i++)
     // this.flashLightController(i++)
     // this.buildStandardController(i++)
   }
 
-    flashLightController(index) {
+  pistolController(index) {
+    const self = this
+    let controller = this.renderer.xr.getController(index)
+
+    controller.addEventListener( 'connected', function (event) {
+      self.buildPistolController.call(self, event.data, this)
+    })
+    controller.addEventListener( 'disconnected', function () {
+      while(this.children.length > 0) {
+        this.remove(this.children[0])
+        const controllerIndex = self.controllers.idexOf(this)
+        self.controllers[controllerIndex] = null
+      }
+    })
+    controller.handle = () => this.handleFlashLightController(controller)
+
+    this.controllers[index] = controller
+    this.scene.add(controller)
+  }
+
+  flashLightController(index) {
       const self = this
 
 
@@ -187,6 +212,31 @@ this.room = new THREE.LineSegments(
       this.controllers[index] = controller
       this.scene.add(controller)
     }
+
+  buildPistolController(data, controller) {
+    let geometry, material, loader
+
+    const self = this
+
+    if (data.targetRayMode === 'tracked-pointer') {
+      loader = new GLTFLoader()
+      loader.load(pistolPack, (gltf) => {
+            // const pistol = gltf.scene.children[2]
+            const pistol = gltf.scene
+            const scale = 0.01
+            pistol.scale.set(scale, scale, scale)
+            pistol.rotateY(Math.PI / 180 * 90)
+            pistol.position.set(0, -0.1, 0)
+            controller.add(pistol)
+          },
+          null,
+          (error) => console.error(`An error happened: ${error}`)
+      )
+    } else if (data.targetRayMode == 'gaze') {
+      geometry = new THREE.RingBufferGeometry(0.02, 0.04, 32).translate(0, 0, -1);
+      material = new THREE.MeshBasicMaterial({opacity: 0.5, transparent: true});
+    }
+  }
 
   buildFlashLightController(data, controller) {
     let geometry, material, loader
