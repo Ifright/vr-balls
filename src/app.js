@@ -7,13 +7,16 @@ import flashLightPack from "../assets/flash-light.glb"
 import pistolPack from "../assets/pistol.glb"
 
 import veniceSunset from '../assets/venice_sunset_1k.hdr';
-import officeChairGlb from "../assets/quaint_village.glb"
+import officeChairGlb from "../assets/office-chair.glb"
+import VillageGlb from "../assets/quaint_village.glb"
 import IslandGlb from "../assets/floating_island.glb"
 import {GLTFLoader} from "three/examples/jsm/loaders/GLTFLoader";
 import {SpotLightVolumetricMaterial} from "./utils/SpotLightVolumetricMaterial";
 import {LoadingBar} from "./LoadingBar";
 import {controllers} from "three/examples/jsm/libs/dat.gui.module";
 import {FlashLightController} from "./controllers/FlashLightController";
+import scene from "three/examples/jsm/offscreen/scene";
+import {PistolController} from "./controllers/PistolController";
 
 class App {
   constructor() {
@@ -45,9 +48,22 @@ class App {
     this.renderer.outputEncoding = THREE.sRGBEncoding
     container.appendChild(this.renderer.domElement)
 
-    // Add loading bar
-    this.loadingBar = new LoadingBar()
-    this.loadGltf()
+      // Add loading bar
+      this.loadingBar = new LoadingBar()
+      this.loadGltf(VillageGlb, glbScene => {
+          const scale = .6
+          glbScene.scale.set(scale, scale, scale)
+          glbScene.position.y = 4.87
+      })
+      const self = this
+      this.loadGltf(IslandGlb, glbScene => {
+          const scale = .3
+          glbScene.scale.set(scale, scale, scale)
+          glbScene.position.x = 8
+          glbScene.position.y = 13
+          glbScene.position.z = 8
+          glbScene.rotateY(Math.PI / 180 * 90)
+      })
 
     this.controllers = []
     this.controls = new OrbitControls(this.camera, this.renderer.domElement)
@@ -69,18 +85,18 @@ class App {
     window.addEventListener('resize', this.resize.bind(this))
   }
 
-  loadGltf() {
+  loadGltf(glbFile, handleScene) {
     const self = this
     const loader = new GLTFLoader()
     loader.load(
-        officeChairGlb,
+        glbFile,
         (gltf) => {
-            self.chair = gltf.scene
-            self.chair.scale.set(.6, .6, .6)
+            let glbScene = gltf.scene
+            handleScene(glbScene)
             self.scene.add(gltf.scene)
             self.loadingBar.visible = false
             self.renderer.setAnimationLoop(self.render.bind(self))
-            self.chair.position.y = 4.87
+
         },
         (xhr) => {
           self.loadingBar.progress = xhr.loaded/xhr.total
@@ -127,13 +143,13 @@ this.room = new THREE.LineSegments(
 
     const geometry = new THREE.IcosahedronBufferGeometry( this.radius, 2 )
 
-    for ( let i = 0; i < 50; i ++ ) {
+    for ( let i = 0; i < 500; i ++ ) {
 
       const object = new THREE.Mesh( geometry, new THREE.MeshLambertMaterial( { color: Math.random() * 0xffffff } ) )
 
-      object.position.x = this.random( -2, 2 )
-      object.position.y = this.random( 0, 4 )
-      object.position.z = this.random( -2, 2 )
+      object.position.x = this.random( -10, 10 )
+      object.position.y = this.random( 0, 20 )
+      object.position.z = this.random( -10, 10 )
 
       // this.room.add( object)
         this.movableObjects.add(object)
@@ -149,13 +165,15 @@ this.room = new THREE.LineSegments(
     document.body.appendChild( VRButton.createButton( this.renderer ) )
 
     let i = 0
-    this.buildDragController(i++)
-    // this.pistolController(i++)
-    this.controllers[i] = new FlashLightController(this.renderer, i, this.scene, this.movableObjects, this.highlight)
-    // this.buildStandardController(i++)
-    // this.pistolController(i++)
-    // this.flashLightController(i++)
-    // this.buildStandardController(i++)
+
+      this.controllers[i] = new PistolController(this.renderer, i++, this.scene, this.movableObjects, this.highlight)
+      this.controllers[i] = new FlashLightController(this.renderer, i++, this.scene, this.movableObjects, this.highlight)
+      // this.buildStandardController(i++)
+      // this.buildDragController(i++)
+      // this.controllers[i] = new PistolController(this.renderer, i, this.scene, this.movableObjects, this.highlight)
+      // this.controllers[i] = new FlashLightController(this.renderer, i, this.scene, this.movableObjects, this.highlight)
+      // this.buildStandardController(i++)
+      // this.buildDragController(i++)
   }
 
   pistolController(index) {
@@ -478,6 +496,7 @@ this.room = new THREE.LineSegments(
     if (this.mesh) {
       this.mesh.rotateX(0.005)
       this.mesh.rotateY(0.01)
+
     }
 
     if (this.controllers) {
