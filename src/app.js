@@ -21,6 +21,7 @@ import {PistolController} from "./controllers/PistolController";
 import {createtext} from "three/examples/jsm/webxr/Text2D";
 import {CanvasUI} from "./utils/CanvasUI";
 import {fetchProfile} from "three/examples/jsm/libs/motion-controllers.module";
+import {DragController} from "./controllers/DragController";
 
 
 
@@ -302,6 +303,7 @@ class App {
       // this.controllers[i] = new FlashLightController(this.renderer, i++, this.scene, this.movableObjects, this.highlight)
       // this.buildStandardController(i++)
       // this.buildDragController(i++)
+      this.controllers[i] = new DragController(this.renderer, i++, this.scene, this.movableObjects, this.highlight)
       // this.controllers[i] = new PistolController(this.renderer, i, this.scene, this.movableObjects, this.highlight)
       // this.controllers[i] = new FlashLightController(this.renderer, i, this.scene, this.movableObjects, this.highlight)
       // this.buildStandardController(i++)

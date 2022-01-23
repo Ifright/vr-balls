@@ -4,6 +4,7 @@ import {GLTFLoader} from "three/examples/jsm/loaders/GLTFLoader";
 import flashLightPack from "../../assets/flash-light.glb";
 import {SpotLightVolumetricMaterial} from "../utils/SpotLightVolumetricMaterial";
 
+
 export class FlashLightController extends Controller {
   raycaster = new THREE.Raycaster()
   spotlights = {}
