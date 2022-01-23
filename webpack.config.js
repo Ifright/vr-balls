@@ -9,11 +9,12 @@ module.exports = {
       title: 'Your first THREE.js app',
       favicon: './src/logo.png'
     }),
-      new CopyWebpackPlugin({
-        patterns: [
-          {from: 'public', to: 'inner'}
-        ]
-      })
+    new CopyWebpackPlugin({
+      patterns: [
+        {from: 'public', to: 'inner'},
+        {from: 'node_modules/@webxr-input-profiles/assets/dist/profiles', to: 'webxr-input-profiles'}
+      ]
+    })
   ],
   module: {
     rules: [
