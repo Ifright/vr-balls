@@ -10,6 +10,7 @@ import veniceSunset from '../assets/venice_sunset_1k.hdr';
 import officeChairGlb from "../assets/office-chair.glb"
 import VillageGlb from "../assets/quaint_village.glb"
 import IslandGlb from "../assets/floating_island.glb"
+import CathedralGlb from "../assets/cathedral.glb"
 import {GLTFLoader} from "three/examples/jsm/loaders/GLTFLoader";
 import {SpotLightVolumetricMaterial} from "./utils/SpotLightVolumetricMaterial";
 import {LoadingBar} from "./LoadingBar";
@@ -17,6 +18,15 @@ import {controllers} from "three/examples/jsm/libs/dat.gui.module";
 import {FlashLightController} from "./controllers/FlashLightController";
 import scene from "three/examples/jsm/offscreen/scene";
 import {PistolController} from "./controllers/PistolController";
+import {createtext} from "three/examples/jsm/webxr/Text2D";
+import {CanvasUI} from "./utils/CanvasUI";
+import {fetchProfile} from "three/examples/jsm/libs/motion-controllers.module";
+
+
+
+
+const DEFAULT_PROFILES_PATH = 'webxr-input-profiles';
+const DEFAULT_PROFILE = 'generic-trigger';
 
 class App {
   constructor() {
@@ -54,6 +64,13 @@ class App {
           const scale = .6
           glbScene.scale.set(scale, scale, scale)
           glbScene.position.y = 4.87
+          glbScene.rotateY(Math.PI / 180 * 180)
+      })
+      this.loadGltf(CathedralGlb, glbScene => {
+          const scale = .6
+          glbScene.scale.set(scale, scale, scale)
+          glbScene.position.y = 9.37
+          glbScene.position.z = -19.197
       })
       const self = this
       this.loadGltf(IslandGlb, glbScene => {
@@ -79,6 +96,8 @@ class App {
     // this.initSceneCube()
     this.initScene()
     this.setupVR()
+
+      this.clock = new THREE.Clock()
 
     this.renderer.setAnimationLoop(this.render.bind(this))
 
@@ -127,47 +146,160 @@ class App {
     // sphere.position.set(1.5, 0, 0)
   }
 
-  initScene(){
-    this.radius = 0.08
 
-      this.movableObjects = new THREE.Group();
-    this.scene.add( this.movableObjects );
+    initScene(){
+        this.radius = 0.08
+
+        this.movableObjects = new THREE.Group();
+        this.scene.add( this.movableObjects );
 
 
-this.room = new THREE.LineSegments(
-    new BoxLineGeometry( 6, 6, 6, 10, 10, 10),
-    new THREE.LineBasicMaterial( { color: 0x808080 } )
-)
-    this.room.geometry.translate( 0, 3, 0 )
-    // this.scene.add( this.room )
+        this.room = new THREE.LineSegments(
+            new BoxLineGeometry( 6, 6, 6, 10, 10, 10),
+            new THREE.LineBasicMaterial( { color: 0x808080 } )
+        )
+        this.room.geometry.translate( 0, 3, 0 )
+        // this.scene.add( this.room )
 
-    const geometry = new THREE.IcosahedronBufferGeometry( this.radius, 2 )
+        const geometry = new THREE.IcosahedronBufferGeometry( this.radius, 2 )
 
-    for ( let i = 0; i < 500; i ++ ) {
+        for ( let i = 0; i < 600; i ++ ) {
 
-      const object = new THREE.Mesh( geometry, new THREE.MeshLambertMaterial( { color: Math.random() * 0xffffff } ) )
+            const object = new THREE.Mesh( geometry, new THREE.MeshLambertMaterial( { color: Math.random() * 0xffffff } ) )
 
-      object.position.x = this.random( -10, 10 )
-      object.position.y = this.random( 0, 20 )
-      object.position.z = this.random( -10, 10 )
+            object.position.x = this.random( -10, 10 )
+            object.position.y = this.random( 0, 20 )
+            object.position.z = this.random( -29, 10 )
 
-      // this.room.add( object)
-        this.movableObjects.add(object)
+            // this.room.add( object)
+            this.movableObjects.add(object)
+        }
+        this.highlight = new THREE.Mesh ( geometry, new THREE.MeshBasicMaterial( {
+            color: 0xFFFFFF, side: THREE.BackSide }))
+        this.highlight.scale.set( 1.2, 1.2, 1.2)
+        this.scene.add( this.highlight )
+
+        // this.addText()
+        this.ui = this.createUI()
     }
-    this.highlight = new THREE.Mesh ( geometry, new THREE.MeshBasicMaterial( {
-      color: 0xFFFFFF, side: THREE.BackSide }))
-    this.highlight.scale.set( 1.2, 1.2, 1.2)
-    this.scene.add( this.highlight )
-  }
+
+    createUI(){
+        const config = {
+            panelSize: { height: 0.8 },
+            height: 500,
+            body: { type: "text" }
+        }
+        const ui = new CanvasUI( { body: "" }, config );
+        ui.mesh.position.set(0, 1.5, -1);
+        this.scene.add( ui.mesh );
+        return ui;
+    }
+
+    updateUI(){
+        if (!this.buttonStates) {
+            return
+        }
+
+        const str = JSON.stringify( this.buttonStates, null, 2);
+        if (this.strStates === undefined || ( str != this.strStates )){
+            this.ui.updateElement( 'body', str );
+            this.ui.update();
+            this.strStates = str;
+        }
+    }
+
+    createButtonStates(components) {
+        const buttonStates = {}
+        this.gamepadIndices = components
+        Object.keys(components).forEach(key => {
+            if (key.includes('touchpad') || key.includes('thumbstick')) {
+                buttonStates[key] = { button: 0, xAxis: 0, yAxis: 0 }
+            } else {
+                buttonStates[key] = 0
+            }
+        })
+        this.buttonStates = buttonStates
+    }
+
+    updateGamepadState() {
+        const session = this.renderer.xr.getSession()
+        const inputSource = session.inputSources[0]
+        if (inputSource && inputSource.gamepad && this.gamepadIndices && this.buttonStates) {
+            const gamepad = inputSource.gamepad
+            try {
+                Object.entries(this.buttonStates).forEach(([key, value]) => {
+                    const buttonIndex = this.gamepadIndices[key].button
+                    if (key.includes('touchpad') || key.includes('thumbstick')) {
+                        const xAxisIndex = this.gamepadIndices[key].xAxis
+                        const yAxisIndex = this.gamepadIndices[key].yAxis
+                        this.buttonStates[key].button = gamepad.buttons[buttonIndex].value
+                        this.buttonStates[key].xAxis = gamepad.axes[xAxisIndex].toFixed(2)
+                        this.buttonStates[key].yAxis = gamepad.axes[yAxisIndex].toFixed(2)
+                    } else {
+                        this.buttonStates[key] = gamepad.buttons[buttonIndex].value
+                    }
+                })
+            } catch (e) {
+                console.warn("An error occurred setting the ui")
+            }
+        }
+    }
+
+    onConnectedRight( event, self ){
+        const info = {};
+
+        fetchProfile( event.data, DEFAULT_PROFILES_PATH, DEFAULT_PROFILE ).then( ( { profile, assetPath } ) => {
+            console.log( JSON.stringify(profile));
+
+            info.name = profile.profileId;
+            info.targetRayMode = event.data.targetRayMode;
+
+            Object.entries( profile.layouts ).forEach( ( [key, layout] ) => {
+                const components = {};
+                Object.values( layout.components ).forEach( ( component ) => {
+                    components[component.rootNodeName] = component.gamepadIndices;
+                });
+                info[key] = components;
+            });
+
+            self.createButtonStates( info.right );
+
+            console.log( JSON.stringify(info) );
+
+        } );
+    }
+
+    showDebugText() {
+        const dt = this.clock.getDelta()
+
+        if (this.renderer.xr.isPresenting) {
+            const self = this
+            if (this.controllers) {
+                this.controllers.forEach(controller => controller.handle())
+            }
+            if (this.elapsedTime == undefined) {
+                this.elapsedTime = 0
+            }
+            this.elapsedTime += dt
+            if (this.elapsedTime > 0.3) {
+                this.updateGamepadState()
+                this.elapsedTime = 0
+                this.updateUI()
+            }
+        } else {
+            // this.stats.update()
+        }
+    }
 
   setupVR(){
     this.renderer.xr.enabled = true
     document.body.appendChild( VRButton.createButton( this.renderer ) )
-
+    const self = this
     let i = 0
 
-      this.controllers[i] = new PistolController(this.renderer, i++, this.scene, this.movableObjects, this.highlight)
-      this.controllers[i] = new FlashLightController(this.renderer, i++, this.scene, this.movableObjects, this.highlight)
+      this.controllers[i] = new PistolController(this.renderer, i++, this.scene, this.movableObjects, this.highlight,
+          event => this.onConnectedRight(event, self))
+      // this.controllers[i] = new FlashLightController(this.renderer, i++, this.scene, this.movableObjects, this.highlight)
       // this.buildStandardController(i++)
       // this.buildDragController(i++)
       // this.controllers[i] = new PistolController(this.renderer, i, this.scene, this.movableObjects, this.highlight)
@@ -502,6 +634,7 @@ this.room = new THREE.LineSegments(
     if (this.controllers) {
       this.controllers.forEach(controller => controller.handle())
     }
+    this.showDebugText()
     this.renderer.render(this.scene, this.camera)
   }
 }

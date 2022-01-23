@@ -7,11 +7,13 @@ export class PistolController extends Controller {
     raycaster = new THREE.Raycaster()
     spotlights = {}
 
-    constructor(renderer, index, scene, movableObjects, highlight) {
+    constructor(renderer, index, scene, movableObjects, highlight, onConnected) {
         super(renderer, index)
         this.scene = scene
         this.movableObjects = movableObjects
         this.highlight = highlight
+
+        this.controller.addEventListener('connected', onConnected)
         this.build(index)
     }
 
