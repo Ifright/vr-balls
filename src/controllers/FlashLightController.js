@@ -57,6 +57,7 @@ export class FlashLightController extends Controller {
   }
 
   handle() {
+      super.handle()
     if (this.controller.userData.selectPressed) {
       this.workingMatrix.identity().extractRotation(this.controller.matrixWorld)
 

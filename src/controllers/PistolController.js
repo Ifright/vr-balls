@@ -40,6 +40,7 @@ export class PistolController extends Controller {
     }
 
     handle() {
+        super.handle()
         if (this.controller.userData.selectPressed) {
             this.controller.children[0].scale.z = 10
             this.workingMatrix.identity().extractRotation( controller.matrixWorld)
